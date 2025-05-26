@@ -12,13 +12,14 @@ Note: This project is for educational purposes and does not aim at performance.
 
 ### Run Training
 ```
-cd python & python train.py
+cd python && python train.py
 ```
 
 ### Run Evaluation
 ```
-cd python & python evaluate.py
+cd python && python evaluate.py
 ```
+Note: a pretrained model is available at _artifacts/model.pt_
 
 
 ### Run C++ Inference
