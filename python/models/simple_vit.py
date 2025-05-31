@@ -31,7 +31,7 @@ class MultiHeadSelfAttention(nn.Module):
         self.num_heads = num_heads
         self.attention_heads = torch.nn.ModuleList(
             [
-                SelfAttention(self.in_size, int(self.out_size / 3))
+                SelfAttention(self.in_size, int(self.out_size / self.num_heads))
                 for i in range(self.num_heads)
             ]
         )
