@@ -1,0 +1,25 @@
+ARTIFACTS_DIR: "../artifacts"
+MODEL:
+  img_size: [28, 28, 1]
+  patch_size: 4
+  embed_size: 128
+  num_classes: 10
+  num_encoder_blocks: 5
+DATA:
+  dataset: "MNIST"
+  batch_size: 128
+  root_dir: "../data"
+OPTIM:
+  loss: ""
+  optimizer: "AdamW"
+  lr: 0.0001
+  accumulate_gradient: False
+  accumulate_gradient_iters: 8
+  num_epochs: 10
+  num_iterations_val: 50
+  save_ckpt_every: 1
+  eval_every: 5
+  gradient_clip: true
+  scheduler: ""
+  T_max: 100
+  eta_min: 0.000001
