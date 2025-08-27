@@ -1,7 +1,21 @@
 import torch
 import torch.nn as nn
 import math
-from utils import divide_in_patches
+class ImagePatcher(nn.Module):
+    def __init__(self, in_size=1, out_size=4, patch_size=4):
+        super(ImagePatcher, self).__init__()
+        self.in_size = in_size
+        self.out_size = out_size
+        self.patch_size = patch_size
+        self.cnn_block = torch.nn.Conv2d(in_size, self.out_size, kernel_size=patch_size, stride=patch_size)
+
+    def forward(self, x):
+        b = x.shape[0]
+        y = self.cnn_block(x)
+        y = y.reshape(b, self.out_size, -1)
+        y = y.transpose(1, 2).contiguous()  # (batch, num_patches, features)
+        return y
+
 
 class SelfAttention(nn.Module):
     def __init__(self, in_size=128, out_size=128):
@@ -30,14 +44,9 @@ class MultiHeadSelfAttention(nn.Module):
         self.out_size = out_size
         self.num_heads = num_heads
         self.attention_heads = torch.nn.ModuleList(
-            [
-                SelfAttention(self.in_size, int(self.out_size / self.num_heads))
-                for i in range(self.num_heads)
-            ]
+            [SelfAttention(self.in_size, self.out_size // self.num_heads) for _ in range(self.num_heads)]
         )
-        self.projection_matrix = nn.Linear(
-            int(self.out_size / 3) * num_heads, self.out_size
-        )
+        self.projection_matrix = nn.Linear((self.out_size // num_heads) * num_heads, self.out_size)
 
     def forward(self, x):
         all_self_attentions = []
@@ -50,7 +59,6 @@ class MultiHeadSelfAttention(nn.Module):
 
 
 class TransformerEncoder(nn.Module):
-
     def __init__(self, embed_size=128, num_patches=16):
         super(TransformerEncoder, self).__init__()
         self.embed_size = embed_size
@@ -75,60 +83,46 @@ class TransformerEncoder(nn.Module):
 
 
 class SimpleViT(nn.Module):
-    def __init__(
-        self,
-        img_size,
-        patch_size,
-        embed_size=128,
-        num_encoder_blocks=3,
-        num_classes=10,
-    ):
+    def __init__(self, config):
         super(SimpleViT, self).__init__()
-        height, width, channels = img_size
+        self.config = config
+        height, width, channels = config["MODEL"]["img_size"]
         assert height == width  # for now, just square images
-        self.num_patches = int(height / patch_size) ** 2
-        self.patch_dim = patch_size**2 * channels
-        self.patch_size = patch_size
+        self.patch_size = config["MODEL"]["patch_size"]
 
-        self.embed_size = embed_size
-        self.num_encoder_blocks = num_encoder_blocks
-        self.num_classes = num_classes
+        self.num_patches = (height // self.patch_size) ** 2
+        self.patch_dim = self.patch_size**2 * channels
 
-        self.patch_embed_transform = nn.Linear(self.patch_dim, self.embed_size)
+        self.embed_size = config["MODEL"]["embed_size"]
+        self.num_encoder_blocks = config["MODEL"]["num_encoder_blocks"]
+        self.num_classes = config["MODEL"]["num_classes"]
+
+        self.patch_embed_transform = nn.Linear(self.embed_size, self.embed_size)
         self.positional_embeddings = nn.Parameter(
-            data=torch.randn(self.num_patches + 1, embed_size), requires_grad=True
+            data=torch.randn(self.num_patches + 1, self.embed_size), requires_grad=True
         )
-        self.class_token = nn.Parameter(
-            data=torch.randn(1, 1, embed_size), requires_grad=True
-        )
+        self.class_token = nn.Parameter(data=torch.randn(1, 1, self.embed_size), requires_grad=True)
 
         self.encoders = torch.nn.ModuleList(
             [
-                TransformerEncoder(embed_size=embed_size, num_patches=self.num_patches)
-                for i in range(num_encoder_blocks)
+                TransformerEncoder(embed_size=self.embed_size, num_patches=self.num_patches)
+                for i in range(self.num_encoder_blocks)
             ]
         )
-        self.classifier = nn.Linear(embed_size, num_classes)
+        self.classifier = nn.Linear(self.embed_size, self.num_classes)
+        self.image_patcher = ImagePatcher(in_size=channels, out_size=self.embed_size, patch_size=self.patch_size)
 
     def forward(self, x):
         batch_size = x.shape[0]
+        x = self.image_patcher(x)
+
         class_token = self.class_token.expand(batch_size, -1, -1)
-        embeddings = (
-            torch.cat((class_token, self.patch_embed_transform(x)), 1)
-            + self.positional_embeddings
-        )
+        embeddings = torch.cat((class_token, self.patch_embed_transform(x)), 1)
+        embeddings += self.positional_embeddings
+
         z = embeddings
         for encoder in self.encoders:
             z = encoder(z)
 
         cls = self.classifier(z[:, 0])
         return cls
-
-
-if __name__ == "__main__":
-    model = ViT()
-    x = torch.rand(2, 128, 128, 3)
-    print(x.shape)
-    x = divide_in_patches(x, patch_size=32)
-    y = model(x)
-    print(y.shape)
