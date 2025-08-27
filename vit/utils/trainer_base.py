@@ -52,7 +52,7 @@ class TrainerBase(ABC):
     def get_num_param_model(self):
         return sum(p.numel() for p in self.model.parameters())
 
-    def save_checkpoint(self):
+    def save_checkpoint(self, save_torchscript_model=True):
         model_path = Path(self.ckpt_dir) / f"ckpt_{str(self.epoch).zfill(4)}.pt"
         torch.save(
             {
@@ -64,6 +64,18 @@ class TrainerBase(ABC):
             model_path,
         )
         self.logger.info(f"Saved checkpoint in: {model_path}")
+        if save_torchscript_model:
+            self.save_torchscript_model()
+
+    def save_torchscript_model(self):
+        height, width, channels = self.config["MODEL"]["img_size"]
+        example_input = torch.randn(1, channels, height, width).to(get_device())
+        traced_script_module = torch.jit.trace(self.model, example_input)
+        model_path = Path(self.ckpt_dir) / f"ckpt_ts_{str(self.epoch).zfill(4)}.pt"
+        traced_script_module.save(model_path)
+        self.logger.info(f"Saved torchscript checkpoint in: {model_path}")
+
+
 
     def load_latest_checkpoint(self):
         if not self.ckpt_dir.exists():
