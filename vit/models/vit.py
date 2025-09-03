@@ -1,9 +1,24 @@
 import torch
 import torch.nn as nn
 import math
+
+
 class ImagePatcher(nn.Module):
-    def __init__(self, in_size=1, out_size=4, patch_size=4):
+    def __init__(self, out_size=1, patch_size=4):
         super(ImagePatcher, self).__init__()
+        self.out_size = out_size
+        self.patch_size = patch_size
+
+    def forward(self, x):
+        unfold = nn.Unfold(kernel_size=self.patch_size, stride=self.patch_size)
+        x_p = unfold(x)  # B, D, N
+        x_p = x_p.permute(0, 2, 1)
+        return x_p
+
+
+class ImagePatcherCNN(nn.Module):
+    def __init__(self, in_size=1, out_size=4, patch_size=4):
+        super(ImagePatcherCNN, self).__init__()
         self.in_size = in_size
         self.out_size = out_size
         self.patch_size = patch_size
@@ -97,7 +112,7 @@ class SimpleViT(nn.Module):
         self.num_encoder_blocks = config["MODEL"]["num_encoder_blocks"]
         self.num_classes = config["MODEL"]["num_classes"]
 
-        self.patch_embed_transform = nn.Linear(self.embed_size, self.embed_size)
+        self.patch_embed_transform = nn.Linear(self.patch_dim, self.embed_size)
         self.positional_embeddings = nn.Parameter(
             data=torch.randn(self.num_patches + 1, self.embed_size), requires_grad=True
         )
@@ -110,7 +125,11 @@ class SimpleViT(nn.Module):
             ]
         )
         self.classifier = nn.Linear(self.embed_size, self.num_classes)
-        self.image_patcher = ImagePatcher(in_size=channels, out_size=self.embed_size, patch_size=self.patch_size)
+
+        if config["MODEL"]["patch_type"] == "simple":
+            self.image_patcher = ImagePatcher(out_size=self.embed_size, patch_size=self.patch_size)
+        else:
+            self.image_patcher = ImagePatcherCNN(out_size=self.patch_dim, patch_size=self.patch_size)
 
     def forward(self, x):
         batch_size = x.shape[0]
