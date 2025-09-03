@@ -5,10 +5,11 @@ MODEL:
   embed_size: 128
   num_classes: 10
   num_encoder_blocks: 5
+  num_mha_heads: 3
   patch_type: "simple" # simple, cnn
 DATA:
   dataset: "MNIST"
-  batch_size: 256
+  batch_size: 64
   root_dir: "../data"
 OPTIM:
   loss: ""
