@@ -8,7 +8,7 @@ MODEL:
   patch_type: "simple" # simple, cnn
 DATA:
   dataset: "MNIST"
-  batch_size: 32
+  batch_size: 256
   root_dir: "../data"
 OPTIM:
   loss: ""
